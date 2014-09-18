@@ -4,7 +4,7 @@ PostScript program that renders a graphical listing of Score's DRW files.
 
 ##Usage
 
-This program requires Ghostscript to be installed.  [Download code9list.ps](https://github.com/th-we/code9list/blob/master/code9list.ps) to your Score LIB directory.
+This program requires Ghostscript to be installed.  [Download code9list.ps](https://raw.githubusercontent.com/th-we/code9list/master/code9list.ps) to your Score LIB directory.
 
 ###Linux/Mac
 
