@@ -1,0 +1,268 @@
+%!
+/outer-box-width 50 def
+/outer-box-height 50 def
+/inner-box-width 45 def
+/inner-box-height 45 def
+/font-name /Courier def
+/font-size 8 def
+/rows-per-page 10 def
+
+/upper-left-corner
+[
+  50
+  outer-box-height
+  font-size 2 mul
+  add
+  rows-per-page mul
+]cvx def
+
+/x-offset outer-box-width inner-box-width sub 2 div def
+/y-offset outer-box-height inner-box-height sub 2 div def
+
+%first-ID is the ID of the first symbol in a file
+/first-ID -10 def
+/row-count 0 def
+
+/filename (LIBXX.DRW)def
+/buffer 130 string def
+/buffer_pos 0 def
+/names
+[
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+  (     )
+]def
+
+%Function for reading signed 2-byte integers from the buffer
+/read_word
+{
+  %Check whether next block has to be read into buffer
+  buffer_pos 128 ge
+  {
+    %read next block of 130 bytes (64 words and a "trailer word")
+    drw //buffer readstring pop pop
+    /buffer_pos 0 def
+  }if
+  //buffer buffer_pos 2 getinterval     %subbuffer
+  /buffer_pos buffer_pos 2 add def      %subbuffer
+  {}forall                              %firstbyte secondbyte
+  8 bitshift or                         %unsigned_word
+  %check whether number is negative (leftmost bit is 1)
+  dup -15 bitshift 1 eq
+  {
+    %calculate two's complement
+    not
+    %only use last 15 bytes
+    2#111111111111111 and
+    1 add neg
+  }if
+}bind def
+
+%Drawing actions that are associated with certain z values
+/z_action
+[
+  {%Line (z = 0)
+    lineto
+  }bind
+  {%Jump (z = 1)                %paint_proc x y
+    3 -1 roll exec              %x y
+    moveto                      %-empty-
+    {stroke}                    %paint_proc'
+  }bind
+  {%Fill (z = 2)                %paint_proc x y
+    3 -1 roll exec
+    moveto
+    {gsave eofill grestore stroke}
+  }bind
+  {%JmpFil (z = 3)
+    moveto
+  }bind
+]def
+
+
+upper-left-corner translate
+font-name font-size selectfont
+
+%Step through files: Increment first letter
+(R)0 get 1 (Z)0 get
+{
+  //filename 3                  %char filename 3
+  3 -1 roll                     %filename 3 char
+  put                           %-empty-
+  %Increment second letter
+  (A)0 get 1 (Z)0 get           %'a' 1 'z'
+  {%for
+    /first-ID first-ID 10 add def
+    //filename 4                %char filename 4
+    3 -1 roll                   %filename 4 char
+    put                         %-empty-
+    %If the above created filename does not exist, this repeat
+    %loop is exited with the help of the below stopped context
+
+
+    1
+    {%repeat
+      {%stopped
+        /drw //filename(r)file def
+      }stopped
+      {%if
+        pop pop pop
+        exit
+      } if
+      drw //filename cvn def
+      (file read: )print //filename =
+      %Read first four bytes, and check whether they are as
+      %expected
+      drw (    ) readstring pop <4b 48 01 00> ne
+      {(Warning: File possibly is not a draw file or corrupted!)=}if
+
+
+      %Read next 10 words
+      drw                         %drw_file
+      //buffer 0 20 getinterval   %drw_file buffer
+      readstring                  %buffer bool
+      pop pop                     %
+      /buffer_pos 0 def
+
+      %Derive number of vectors in each symbol from next 10
+      %2-byte signed integers
+      /number_of_vectors
+      [
+        1
+        10
+        {
+          read_word dup           %last_abs word word
+          3 -1 roll               %word word last_abs
+          sub                     %word number_of_vector_components
+          3 idiv                  %word number_of_vectors
+          exch                    %number_of_vectors word
+        } repeat
+        pop
+      ]def
+
+      %Read the ten symbol names
+      drw dup
+      //names                   %file file names_array
+      {%forall                  %file file string
+        readstring pop =        %file
+        dup                     %file file
+      }forall
+      pop pop
+
+
+      %skip two bytes
+      drw (  ) readstring pop pop
+      %read block into buffer
+      drw buffer readstring pop pop
+      /buffer_pos 0 def
+
+
+      /row-count row-count            %/row-count row-count
+      dup //rows-per-page eq          %/row-count row-count bool
+      {%if
+        showpage
+        upper-left-corner translate
+        pop 0
+      }if
+      1 add                           %/row-count row-count
+      pstack
+      def                             %-empty-
+
+      %Print filename
+      gsave
+      90 rotate
+      0 font-size .5 mul moveto
+      //filename show
+      grestore
+      gsave
+
+      %Get symbol paths of all ten symbols, draw them
+      0 1 9
+      {%for                           %index
+        gsave
+        %Exit the for loop if there isn't another symbol in the file
+        //names                       %index names_array
+        1 index                       %index names_array index
+        get                           %index name
+        dup (     ) eq                %index name bool
+        {pop pop grestore exit}if     %index name
+
+        %Print frame with symbol name and ID
+        1 index                       %index name index
+        first-ID add                  %index name ID
+        (     ) cvs                   %index name index_string
+        0 //outer-box-height //font-size .5 mul add moveto
+        show ( ) show show            %index
+        0 0 //outer-box-width //outer-box-height rectstroke
+
+
+        number_of_vectors exch get    %number_of_vectors
+        [
+          [                           %number_of_vectors [ [
+            %Read first triple, create first element of dummy path for bounding box calculation
+            3 //read_word repeat          %number_of_vectors [ [ x0 y0 z0
+            newpath                       %number_of_vectors [ [ x0 y0 z0
+            3 copy pop moveto             %number_of_vectors [ [ x0 y0 z0
+          ]                           %number_of_vectors [ v_0
+
+          %Read remaining vector elements, append them to the path
+          3 -1 roll                   %[ v_0 number_of_vectors
+          1 sub                       %[ v_0 number_of_vectors-1
+          {                           %[ v_0 ... v_n-1 [
+            [
+              3 //read_word repeat    %[ v_0 ... v_n-1 [ x_n y_n z_n
+              3 copy pop lineto       %[ v_0 ... v_n-1 [ x_n y_n z_n
+            ]                         %[ v_0 ... v_n-1 v_n
+          }repeat
+                                      %[ v_0 ... v_n
+        ]                             %vector_list
+
+        %Get pathbbox, scale and translate to make the path fit into given box
+        pathbbox newpath              %vector_list llx lly urx ury
+        4 copy                        %vector_list llx lly urx ury llx lly urx ury
+        pop pop                       %vector_list llx lly urx ury llx lly
+        3 -1 roll                     %vector_list llx lly urx llx lly ury
+        sub neg                       %vector_list llx lly urx llx height
+        3 1 roll                      %vector_list llx lly height urx llx
+        sub                           %vector_list llx lly height width
+        %Calculate scaling factors to fit symbol's width/height into the box
+        //inner-box-width exch        %vector_list llx lly height //box-width width
+        div                           %vector_list llx lly height horiz_scaling_factor
+        exch                          %vector_list llx lly horiz_scaling_factor height
+        //inner-box-height exch       %vector_list llx lly horiz_scaling_factor box-height height
+        div                           %vector_list llx lly horiz_scaling_factor vert_scaling_factor
+        2 copy gt                     %vector_list llx lly horiz_scaling_factor vert_scaling_factor bool
+        {exch}if                      %vector_list llx lly smaller_scaling_factor larger_scaling_factor
+        pop                           %vector_list llx lly smaller_scaling_factor
+        %Translate and scale accordingly
+        x-offset y-offset translate
+        dup scale                     %vector_list llx lly
+        neg exch neg exch
+        translate                     %vector_list
+
+        {}exch                        %paint_proc vector_list
+        %Draw the symbol
+        {                             %paint_proc vector
+          aload pop                   %paint_proc x y z
+          %Ignore negative z's (they are handled like 0)
+          dup 0 lt {pop 0}if          %paint_proc x y z'
+          %Execute drawing action associated with the z value
+          //z_action exch get exec    %paint_proc'
+        }forall
+        exec
+        grestore
+        //outer-box-width 0 translate
+
+      }for
+      grestore
+      0 //outer-box-height //font-size 2 mul add neg translate
+    }repeat
+  }for
+}bind for
