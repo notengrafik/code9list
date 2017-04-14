@@ -2,11 +2,11 @@
 
 PostScript program that renders a graphical listing of Score's DRW files.
 
-##Usage
+## Usage
 
 This program requires [Ghostscript](http://www.ghostscript.com/download/gsdnld.html) to be installed.  [Download code9list.ps](https://raw.githubusercontent.com/th-we/code9list/master/code9list.ps) to your Score LIB directory.
 
-###Linux/Mac
+### Linux/Mac
 
 * Open a terminal at your Score LIB directory
 * To create a PDF listing, type:<br/>
